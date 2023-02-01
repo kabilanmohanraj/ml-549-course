@@ -21,6 +21,10 @@ from keras import layers
 import tensorflow_datasets as tfds
 from matplotlib import pyplot as plt
 
+from keras.models import Sequential
+from keras.layers import Conv2D, MaxPooling2D, Dense, Flatten, Dropout, Resizing, BatchNormalization
+
+import numpy as np
 
 
 if __name__ == '__main__':
@@ -30,8 +34,8 @@ if __name__ == '__main__':
     wandb.init(
         project="hw1_spring2023",  # Leave this as 'hw1_spring2023'
         entity="bu-spark-ml",  # Leave this
-        group="<your_BU_username>",  # <<<<<<< Put your BU username here
-        notes="Minimal model"  # <<<<<<< You can put a short note here
+        group="kabilanm",  # <<<<<<< Put your BU username here
+        notes="Final model"  # <<<<<<< You can put a short note here
     )
 
     """
@@ -49,7 +53,7 @@ if __name__ == '__main__':
     (ds_cifar10_train, ds_cifar10_test), ds_cifar10_info = tfds.load(
         'cifar10',
         split=['train', 'test'],
-        data_dir='/projectnb/ds549/datasets/tensorflow_datasets',
+        data_dir='./datasets/tensorflow_datasets',
         shuffle_files=True, # load in random order
         as_supervised=True, # Include labels
         with_info=True, # Include info
@@ -77,18 +81,43 @@ if __name__ == '__main__':
     ds_cifar10_test = ds_cifar10_test.cache()
     ds_cifar10_test = ds_cifar10_test.prefetch(tf.data.AUTOTUNE)
 
-    # Define the model here
-    model = tf.keras.models.Sequential([
-        keras.Input(shape=(32, 32, 3)),
-        #####################################
-        # Edit code here -- Update the model definition
-        # You will need a dense last layer with 10 output channels to classify the 10 classes
-        # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-        layers.Flatten(),
-        layers.Dense(128, activation='relu'),
-        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        tf.keras.layers.Dense(10)
-    ])
+    model = Sequential()
+
+    ## VGG-like architechture
+
+    # Reshape image here
+    # model.add(Resizing(64, 64, interpolation="bilinear", crop_to_aspect_ratio=False))
+
+    model.add(Conv2D(32, (3, 3), activation='relu', padding="same", input_shape=(32, 32, 3))) # convolutional layer
+    model.add(BatchNormalization()) # batch normalization layer (beneficial for small batch sizes)
+    model.add(Conv2D(32, (3, 3), activation='relu', padding="same")) # convolutional layer
+    model.add(BatchNormalization()) # batch normalization layer
+    model.add(MaxPooling2D((2, 2))) # maxpooling layer
+
+    # The above set of layers are repeated 2 more times to achieve a VGG model-like structure
+    model.add(Conv2D(64, (3, 3), activation='relu', padding="same"))
+    model.add(BatchNormalization())
+    model.add(Conv2D(64, (3, 3), activation='relu', padding="same"))
+    model.add(BatchNormalization())
+    model.add(MaxPooling2D((2, 2)))
+
+    model.add(Conv2D(128, (3, 3), activation='relu', padding="same"))
+    model.add(BatchNormalization())
+    model.add(Conv2D(256, (3, 3), activation='relu', padding="same"))
+    model.add(BatchNormalization())
+    model.add(MaxPooling2D((2, 2)))
+
+    model.add(Flatten()) # Flatten layer
+    model.add(Dropout(0.2)) # Adding dropout so as to not overfit the model to the training data
+
+    # Final set of dense layers
+    model.add(Dense(4096, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dense(2048, activation='relu'))
+    model.add(BatchNormalization())
+
+    # Final activation layer with "Softmax" activation function for classification
+    model.add(Dense(10, activation='softmax'))
 
     # Log the training hyper-parameters for WandB
     # If you change these in model.compile() or model.fit(), be sure to update them here.
@@ -96,22 +125,22 @@ if __name__ == '__main__':
         #####################################
         # Edit these as desired
         # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-        "learning_rate": 0.001,
+        "learning_rate": 0.0005,
         "optimizer": "adam",
-        "epochs": 5,
+        "epochs": 15,
         "batch_size": 32
         # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     }
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=.001),
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=.0005),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy()],
     )
 
     history = model.fit(
         ds_cifar10_train,
-        epochs=5,
+        epochs=15,
         validation_data=ds_cifar10_test,
         callbacks=[WandbMetricsLogger()]
     )
