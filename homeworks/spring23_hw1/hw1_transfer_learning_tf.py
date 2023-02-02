@@ -64,18 +64,19 @@ if __name__ == '__main__':
 
     def normalize_img(image, label):
         """Normalizes images: `uint8` -> `float32`."""
-        return tf.cast(image, tf.float32) / 255., label
+        # return tf.cast(image, tf.float32) / 255., label
+        return image, label
 
     # Prepare cifar10 training dataset
     ds_cifar10_train = ds_cifar10_train.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
     ds_cifar10_train = ds_cifar10_train.cache()     # Cache data
     ds_cifar10_train = ds_cifar10_train.shuffle(ds_cifar10_info.splits['train'].num_examples)
-    ds_cifar10_train = ds_cifar10_train.batch(128)  # <<<<< To change batch size, you have to change it here
+    ds_cifar10_train = ds_cifar10_train.batch(512)  # <<<<< To change batch size, you have to change it here
     ds_cifar10_train = ds_cifar10_train.prefetch(tf.data.AUTOTUNE)
 
     # Prepare cifar10 test dataset
     ds_cifar10_test = ds_cifar10_test.map(normalize_img, num_parallel_calls=tf.data.AUTOTUNE)
-    ds_cifar10_test = ds_cifar10_test.batch(128)    # <<<<< To change batch size, you have to change it here
+    ds_cifar10_test = ds_cifar10_test.batch(512)    # <<<<< To change batch size, you have to change it here
     ds_cifar10_test = ds_cifar10_test.cache()
     ds_cifar10_test = ds_cifar10_test.prefetch(tf.data.AUTOTUNE)
 
@@ -90,11 +91,11 @@ if __name__ == '__main__':
     )
 
     base_model.trainable = False # We set this to False, since we are not training the network but the last layer
-    # rescale_layer = keras.layers.Rescaling(scale=1/127.5, offset=-1)
+    rescale_layer = keras.layers.Rescaling(scale=1/127.5, offset=-1)
 
     model.add(inputs)
-    model.add(Resizing(256, 256, interpolation="bilinear", crop_to_aspect_ratio=False)) # image resize to a larger resolution
-    # model.add(rescale_layer)
+    model.add(Resizing(256, 256, interpolation="bicubic", crop_to_aspect_ratio=False)) # image resize to a larger resolution
+    model.add(rescale_layer)
     model.add(base_model)
 
     # Adding new layers to the base "DenseNet201" model to conform to our requirements
@@ -110,8 +111,9 @@ if __name__ == '__main__':
         # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
         # "learning_rate": 0.001,
         "optimizer": "adam",
-        "epochs": 20,
-        "batch_size": 128 # larger batch size to speed up the training process
+        "epochs": 5, # (NOTE) Reason for low number of epochs: The model converges very soon as the weights are imported. 
+        # The last layer training is compute heavy, so I trained the model for only 5 epochs.
+        "batch_size": 512
         # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     }
 
